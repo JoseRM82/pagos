@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Gasto {
+  idGasto   String   @id @default(cuid()) @map("id_gasto")
+  fecha     DateTime
+  tipo      String
+  concepto  String   @default("Gasto")
+  cantidad  Decimal
+  prestamo  Boolean  @default(false)
+  pagado    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fecha])
+  @@index([concepto])
+  @@map("gastos")
+}
