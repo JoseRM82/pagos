@@ -14,12 +14,27 @@ App local para registrar y visualizar gastos mensuales con gráfico de barras ap
 ```bash
 cd backend
 cp .env.example .env
+```
+
+En `.env` poné la `DATABASE_URL` de Neon (Postgres), por ejemplo:
+
+```
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/neondb?sslmode=require"
+```
+
+```bash
 npm install
 npx prisma migrate deploy
 npm run start:dev
 ```
 
 API en `http://localhost:3000/api`.
+
+Para cargar datos desde un SQLite local (una sola vez):
+
+```bash
+node scripts/import-from-sqlite.js
+```
 
 ### Frontend
 
@@ -33,7 +48,7 @@ UI en `http://localhost:5173`.
 
 ## Persistencia
 
-Los datos se guardan en SQLite en `backend/prisma/dev.db`. El archivo **no se borra** al reiniciar la app; permanece entre sesiones.
+Los datos viven en **PostgreSQL (Neon)**. La app local y cualquier otro dispositivo usan la misma `DATABASE_URL`. No se borra al reiniciar; el archivo `prisma/dev.db` queda solo como backup local opcional.
 
 ## Funcionalidades
 
