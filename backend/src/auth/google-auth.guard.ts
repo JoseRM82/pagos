@@ -1,4 +1,9 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
@@ -7,20 +12,18 @@ export class GoogleAuthGuard extends AuthGuard('google') {
     err: Error | null,
     user: TUser,
     info: { message?: string } | string | undefined,
-    context: ExecutionContext,
+    _context: ExecutionContext,
   ): TUser {
     if (err || !user) {
-      const res = context.switchToHttp().getResponse();
-      const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
-      const infoMsg =
-        typeof info === 'string' ? info : info?.message;
-      const reason = encodeURIComponent(
-        err?.message || infoMsg || 'acceso denegado',
-      );
-      if (!res.headersSent) {
-        res.redirect(`${front}?auth=denied&reason=${reason}`);
+      const infoMsg = typeof info === 'string' ? info : info?.message;
+      const message = err?.message || infoMsg || 'acceso denegado';
+      if (err instanceof ForbiddenException) {
+        throw err;
       }
-      return undefined as TUser;
+      if (message.toLowerCase().includes('no tiene acceso')) {
+        throw new ForbiddenException(message);
+      }
+      throw new UnauthorizedException(message);
     }
     return user;
   }

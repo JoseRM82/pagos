@@ -1,6 +1,15 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
+import { AuthRedirectFilter } from './auth-redirect.filter';
 import { AuthService, AuthUser, SESSION_COOKIE } from './auth.service';
 import { GoogleAuthGuard } from './google-auth.guard';
 
@@ -16,11 +25,18 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
+  @UseFilters(AuthRedirectFilter)
   googleCallback(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as AuthUser | undefined;
-    if (!user) {
+    if (res.headersSent) {
       return;
     }
+
+    const user = req.user as AuthUser | undefined;
+    if (!user) {
+      const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+      return res.redirect(`${front}?auth=denied&reason=sin_usuario`);
+    }
+
     const token = this.authService.sign(user);
     res.cookie(SESSION_COOKIE, token, this.authService.cookieOptions());
     const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
