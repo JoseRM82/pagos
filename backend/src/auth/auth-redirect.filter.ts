@@ -7,14 +7,14 @@ import {
   HttpException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { frontendUrl } from './frontend-url';
+import { frontendUrl, mobileRedirectUrl } from './frontend-url';
 
 @Catch(UnauthorizedException, ForbiddenException)
 export class AuthRedirectFilter implements ExceptionFilter {
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
-    const req = ctx.getRequest<{ url?: string }>();
+    const req = ctx.getRequest<{ url?: string; query?: { state?: string } }>();
 
     const isGoogleCallback =
       typeof req.url === 'string' &&
@@ -33,9 +33,10 @@ export class AuthRedirectFilter implements ExceptionFilter {
 
     if (res.headersSent) return;
 
-    const front = frontendUrl();
+    const dest =
+      req.query?.state === 'mobile' ? mobileRedirectUrl() : frontendUrl();
     const raw = exception.message || 'acceso denegado';
     const reason = encodeURIComponent(raw);
-    res.redirect(`${front}?auth=denied&reason=${reason}`);
+    res.redirect(`${dest}?auth=denied&reason=${reason}`);
   }
 }

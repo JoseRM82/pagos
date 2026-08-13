@@ -1,12 +1,29 @@
+import { getSessionToken } from './sessionToken';
+import type {
+  ConsolidadoAnual,
+  ConsolidadoMensual,
+  CreateGastoPayload,
+  Gasto,
+} from '../types/gasto';
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
 export { API_URL };
 
+function authHeaders(): HeadersInit {
+  const token = getSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      ...options?.headers,
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -19,13 +36,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
-
-import type {
-  ConsolidadoAnual,
-  ConsolidadoMensual,
-  CreateGastoPayload,
-  Gasto,
-} from '../types/gasto';
 
 export const gastosApi = {
   createOne: (gasto: CreateGastoPayload) =>

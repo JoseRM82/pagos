@@ -7,6 +7,7 @@ import { AddExpenseModal } from './components/AddExpenseModal';
 import { LoginScreen } from './components/LoginScreen';
 import { authApi } from './api/authApi';
 import { gastosApi } from './api/gastosApi';
+import { listenAuthDeepLink } from './native/authDeepLink';
 import type { ConsolidadoAnual, ConsolidadoMensual } from './types/gasto';
 
 function App() {
@@ -34,11 +35,32 @@ function App() {
     if (params.has('auth')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-    void authApi
-      .me()
-      .then((user) => setAuthed(Boolean(user)))
-      .catch(() => setAuthed(false))
-      .finally(() => setAuthReady(true));
+
+    const checkMe = () =>
+      authApi
+        .me()
+        .then((user) => setAuthed(Boolean(user)))
+        .catch(() => setAuthed(false));
+
+    void checkMe().finally(() => setAuthReady(true));
+
+    let remove: (() => void) | undefined;
+    void listenAuthDeepLink((result) => {
+      if (result.ok) {
+        setAuthDenied(false);
+        void checkMe();
+        return;
+      }
+      setAuthDenied(true);
+      if (result.reason) {
+        sessionStorage.setItem('auth_denied_reason', result.reason);
+      }
+      setAuthed(false);
+    }).then((off) => {
+      remove = off;
+    });
+
+    return () => remove?.();
   }, []);
 
   const refresh = useCallback(async () => {

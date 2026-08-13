@@ -8,6 +8,18 @@ import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
 export class GoogleAuthGuard extends AuthGuard('google') {
+  getAuthenticateOptions(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<{
+      query?: { client?: string };
+      url?: string;
+    }>();
+    // En el callback Google ya trae `state`; no pisarlo.
+    if ((req.url ?? '').includes('/callback')) {
+      return {};
+    }
+    return { state: req.query?.client === 'mobile' ? 'mobile' : 'web' };
+  }
+
   handleRequest<TUser>(
     err: Error | null,
     user: TUser,

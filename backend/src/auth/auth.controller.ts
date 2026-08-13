@@ -11,8 +11,12 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { AuthRedirectFilter } from './auth-redirect.filter';
 import { AuthService, AuthUser, SESSION_COOKIE } from './auth.service';
-import { frontendUrl } from './frontend-url';
+import { frontendUrl, mobileRedirectUrl } from './frontend-url';
 import { GoogleAuthGuard } from './google-auth.guard';
+
+function isMobileOAuth(req: Request): boolean {
+  return req.query?.state === 'mobile';
+}
 
 @Controller('auth')
 export class AuthController {
@@ -33,14 +37,19 @@ export class AuthController {
     }
 
     const user = req.user as AuthUser | undefined;
-    const front = frontendUrl();
+    const mobile = isMobileOAuth(req);
+    const dest = mobile ? mobileRedirectUrl() : frontendUrl();
     if (!user) {
-      return res.redirect(`${front}?auth=denied&reason=sin_usuario`);
+      return res.redirect(`${dest}?auth=denied&reason=sin_usuario`);
     }
 
     const token = this.authService.sign(user);
+    if (mobile) {
+      return res.redirect(`${dest}?token=${encodeURIComponent(token)}`);
+    }
+
     res.cookie(SESSION_COOKIE, token, this.authService.cookieOptions());
-    return res.redirect(front);
+    return res.redirect(dest);
   }
 
   @Get('me')

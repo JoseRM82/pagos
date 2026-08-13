@@ -13,7 +13,10 @@ function cookieExtractor(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor() {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractor]),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        cookieExtractor,
+      ]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET ?? 'dev-secret-change-me',
     });

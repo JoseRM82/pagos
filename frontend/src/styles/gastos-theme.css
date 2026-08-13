@@ -78,6 +78,8 @@ select {
   display: inline-block;
   text-decoration: none;
   margin-top: 1rem;
+  width: 100%;
+  text-align: center;
 }
 
 .btn-primary {

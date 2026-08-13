@@ -1,4 +1,4 @@
-import { googleLoginUrl } from '../api/authApi';
+import { authApi } from '../api/authApi';
 
 export function LoginScreen({ denied }: { denied: boolean }) {
   const reason =
@@ -17,13 +17,13 @@ export function LoginScreen({ denied }: { denied: boolean }) {
             {reason ? `: ${reason}` : '.'}
           </div>
         )}
-        <a
+        <button
+          type="button"
           className="btn-primary google-btn"
-          href={googleLoginUrl()}
-          onClick={() => sessionStorage.removeItem('auth_denied_reason')}
+          onClick={() => void authApi.startGoogleLogin()}
         >
           Continuar con Google
-        </a>
+        </button>
       </div>
     </div>
   );
