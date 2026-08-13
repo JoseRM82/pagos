@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { AuthRedirectFilter } from './auth-redirect.filter';
 import { AuthService, AuthUser, SESSION_COOKIE } from './auth.service';
+import { frontendUrl } from './frontend-url';
 import { GoogleAuthGuard } from './google-auth.guard';
 
 @Controller('auth')
@@ -32,14 +33,13 @@ export class AuthController {
     }
 
     const user = req.user as AuthUser | undefined;
+    const front = frontendUrl();
     if (!user) {
-      const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
       return res.redirect(`${front}?auth=denied&reason=sin_usuario`);
     }
 
     const token = this.authService.sign(user);
     res.cookie(SESSION_COOKIE, token, this.authService.cookieOptions());
-    const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
     return res.redirect(front);
   }
 

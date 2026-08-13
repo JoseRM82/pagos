@@ -66,11 +66,14 @@ GOOGLE_CLIENT_SECRET
 GOOGLE_CALLBACK_URL=https://pagos-api-0f3i.onrender.com/api/auth/google/callback
 AUTH_ALLOWED_EMAIL=tu-email@gmail.com
 JWT_SECRET=<string largo aleatorio>
-FRONTEND_URL=http://localhost:5173
-CORS_ORIGIN=http://localhost:5173
+FRONTEND_URL=https://pagos-peach-zeta.vercel.app
+CORS_ORIGIN=https://pagos-peach-zeta.vercel.app,http://localhost:5173
 ```
 
 Pantalla de consentimiento: tipo **Externo**, estado Prueba, y tu email como usuario de prueba (hasta publicar la app).
+
+Front en producción: [https://pagos-peach-zeta.vercel.app](https://pagos-peach-zeta.vercel.app/).
+API: `https://pagos-api-0f3i.onrender.com`.
 
 ## Persistencia
 

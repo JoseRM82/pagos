@@ -7,6 +7,7 @@ import {
   HttpException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { frontendUrl } from './frontend-url';
 
 @Catch(UnauthorizedException, ForbiddenException)
 export class AuthRedirectFilter implements ExceptionFilter {
@@ -32,7 +33,7 @@ export class AuthRedirectFilter implements ExceptionFilter {
 
     if (res.headersSent) return;
 
-    const front = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const front = frontendUrl();
     const raw = exception.message || 'acceso denegado';
     const reason = encodeURIComponent(raw);
     res.redirect(`${front}?auth=denied&reason=${reason}`);
