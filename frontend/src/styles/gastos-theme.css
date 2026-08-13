@@ -178,17 +178,29 @@ select {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .chart-scroll-inner {
   width: 100%;
   height: 320px;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.chart-scroll .recharts-wrapper,
-.chart-scroll .recharts-surface,
-.chart-scroll .recharts-bar-rectangle {
-  outline: none;
+.chart-scroll,
+.chart-scroll *,
+.chart-scroll *:focus,
+.chart-scroll *:focus-visible,
+.chart-scroll *:active {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.chart-scroll svg {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .month-nav {

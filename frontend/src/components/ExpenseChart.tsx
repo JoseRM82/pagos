@@ -225,7 +225,14 @@ export function ExpenseChart({ mode, onModeChange, mensual, anual }: Props) {
           </span>
         ))}
       </div>
-      <div className="chart-scroll">
+      <div
+        className="chart-scroll"
+        tabIndex={-1}
+        onPointerUp={() => {
+          const active = document.activeElement;
+          if (active instanceof HTMLElement) active.blur();
+        }}
+      >
         <div
           className="chart-scroll-inner"
           style={{ minWidth: Math.max(points.length * 52 + 64, 280) }}
