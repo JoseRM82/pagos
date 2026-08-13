@@ -15,6 +15,7 @@ backend/prisma/dev.db-journal
 *.log
 .DS_Store
 *.tsbuildinfo
+.idea/
 
 # Capacitor / Android
 frontend/android/.gradle/

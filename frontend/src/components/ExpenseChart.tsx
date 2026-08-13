@@ -225,43 +225,62 @@ export function ExpenseChart({ mode, onModeChange, mensual, anual }: Props) {
           </span>
         ))}
       </div>
-      <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={points} margin={{ top: 10, right: 20, left: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--gasto-border)" />
-          <XAxis dataKey="label" tick={{ fill: 'var(--gasto-text-muted)', fontSize: 12 }} />
-          <YAxis
-            width={72}
-            domain={[0, maxY]}
-            ticks={ticks}
-            tickFormatter={(v) => formatAxisNumber(v)}
-            tick={{ fill: 'var(--gasto-text-muted)', fontSize: 11 }}
-          />
-          <Tooltip
-            shared={false}
-            cursor={false}
-            content={<CustomTooltip points={points} mode={mode} />}
-          />
-          {SEGMENTS.map((s) => (
-            <Bar
-              key={s.key}
-              dataKey={s.key}
-              stackId="gastos"
-              fill={s.color}
-              radius={s.key === 'prestamo' ? [4, 4, 0, 0] : undefined}
-              activeBar={{ stroke: '#111', strokeWidth: 1.5 }}
-            />
-          ))}
-          {/* Zona vacía arriba de la barra: hover → total */}
-          <Bar
-            dataKey="air"
-            stackId="gastos"
-            fill="transparent"
-            legendType="none"
-            isAnimationActive={false}
-            activeBar={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="chart-scroll">
+        <div
+          className="chart-scroll-inner"
+          style={{ minWidth: Math.max(points.length * 52 + 64, 280) }}
+        >
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart
+              data={points}
+              margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+              barCategoryGap="18%"
+            >
+              <CartesianGrid
+                strokeDasharray="4 4"
+                vertical={false}
+                stroke="var(--gasto-border)"
+              />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: 'var(--gasto-text-muted)', fontSize: 12 }}
+                interval={0}
+              />
+              <YAxis
+                width={56}
+                domain={[0, maxY]}
+                ticks={ticks}
+                tickFormatter={(v) => formatAxisNumber(v)}
+                tick={{ fill: 'var(--gasto-text-muted)', fontSize: 11 }}
+              />
+              <Tooltip
+                shared={false}
+                cursor={false}
+                content={<CustomTooltip points={points} mode={mode} />}
+              />
+              {SEGMENTS.map((s) => (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  stackId="gastos"
+                  fill={s.color}
+                  radius={s.key === 'prestamo' ? [4, 4, 0, 0] : undefined}
+                  activeBar={false}
+                />
+              ))}
+              {/* Zona vacía arriba de la barra: hover → total */}
+              <Bar
+                dataKey="air"
+                stackId="gastos"
+                fill="transparent"
+                legendType="none"
+                isAnimationActive={false}
+                activeBar={false}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }
