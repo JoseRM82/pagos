@@ -57,6 +57,29 @@ select {
   font-weight: 700;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.login-card {
+  max-width: 420px;
+  margin: 4rem auto;
+  text-align: center;
+}
+
+.login-card h1 {
+  color: var(--gasto-purple);
+  margin-top: 0;
+}
+
+.google-btn {
+  display: inline-block;
+  text-decoration: none;
+  margin-top: 1rem;
+}
+
 .btn-primary {
   background: var(--gasto-purple);
   color: #fff;

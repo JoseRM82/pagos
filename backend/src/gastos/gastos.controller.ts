@@ -7,11 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateGastoDto } from './dto/create-gasto.dto';
 import { UpdateGastoDto } from './dto/update-gasto.dto';
 import { GastosService } from './gastos.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('gastos')
 export class GastosController {
   constructor(private readonly gastosService: GastosService) {}

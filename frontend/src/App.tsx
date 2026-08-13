@@ -4,10 +4,15 @@ import { ExpenseChart, type ChartMode } from './components/ExpenseChart';
 import { MonthExpenseTable } from './components/MonthExpenseTable';
 import { ConceptModal } from './components/ConceptModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
+import { LoginScreen } from './components/LoginScreen';
+import { authApi } from './api/authApi';
 import { gastosApi } from './api/gastosApi';
 import type { ConsolidadoAnual, ConsolidadoMensual } from './types/gasto';
 
 function App() {
+  const [authReady, setAuthReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
+  const [authDenied, setAuthDenied] = useState(false);
   const [chartMode, setChartMode] = useState<ChartMode>('monthly');
   const [mensual, setMensual] = useState<ConsolidadoMensual[]>([]);
   const [anual, setAnual] = useState<ConsolidadoAnual[]>([]);
@@ -18,6 +23,18 @@ function App() {
   const [blockModalClose, setBlockModalClose] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [focusMonth, setFocusMonth] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setAuthDenied(params.get('auth') === 'denied');
+    if (params.has('auth')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    void authApi.me().then((user) => {
+      setAuthed(Boolean(user));
+      setAuthReady(true);
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -31,20 +48,43 @@ function App() {
       setAnual(a);
       setMesesConDatos(meses);
       setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      if (status === 401) {
+        setAuthed(false);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    if (!authed) return;
     void refresh();
-  }, [refresh]);
+  }, [authed, refresh]);
+
+  const handleLogout = async () => {
+    await authApi.logout();
+    setAuthed(false);
+  };
+
+  if (!authReady) {
+    return (
+      <div className="app-container">
+        <div className="status-msg muted">Cargando...</div>
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return <LoginScreen denied={authDenied} />;
+  }
 
   const hasData = mesesConDatos.length > 0 || mensual.length > 0;
 
   return (
     <div className="app-container">
-      <Header onAddClick={() => setShowAdd(true)} />
+      <Header onAddClick={() => setShowAdd(true)} onLogout={() => void handleLogout()} />
 
       {loading && !hasData ? (
         <div className="status-msg muted">Cargando datos...</div>

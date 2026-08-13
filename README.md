@@ -46,6 +46,32 @@ npm run dev
 
 UI en `http://localhost:5173`.
 
+## Autenticación
+
+No hay registro. Solo entra el email definido en `AUTH_ALLOWED_EMAIL` vía **Google**.
+
+La sesión dura **30 días** (cookie httpOnly). El aviso al celular lo manda **Google** si tenés la verificación en 2 pasos / “prompt” activado en tu cuenta.
+
+### Google Cloud (una vez)
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → APIs y servicios → **Credenciales**
+2. Crear **ID de cliente de OAuth** → tipo **Aplicación web**
+3. Orígenes autorizados: `https://pagos-api-0f3i.onrender.com`
+4. URI de redirección: `https://pagos-api-0f3i.onrender.com/api/auth/google/callback`
+5. En Render → Environment, agregar:
+
+```
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_CALLBACK_URL=https://pagos-api-0f3i.onrender.com/api/auth/google/callback
+AUTH_ALLOWED_EMAIL=tu-email@gmail.com
+JWT_SECRET=<string largo aleatorio>
+FRONTEND_URL=http://localhost:5173
+CORS_ORIGIN=http://localhost:5173
+```
+
+Pantalla de consentimiento: tipo **Externo**, estado Prueba, y tu email como usuario de prueba (hasta publicar la app).
+
 ## Persistencia
 
 Los datos viven en **PostgreSQL (Neon)**. La app local y cualquier otro dispositivo usan la misma `DATABASE_URL`. No se borra al reiniciar; el archivo `prisma/dev.db` queda solo como backup local opcional.
