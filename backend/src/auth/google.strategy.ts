@@ -21,7 +21,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifyCallback,
   ): void {
     try {
-      const email = profile.emails?.[0]?.value;
+      const json = profile._json as { email?: string } | undefined;
+      const email = profile.emails?.[0]?.value ?? json?.email;
+      if (!email) {
+        done(new Error('Google no devolvió un email'), undefined);
+        return;
+      }
       const allowed = this.authService.assertAllowedEmail(email);
       const user: AuthUser = {
         email: allowed,
@@ -29,7 +34,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       };
       done(null, user);
     } catch (err) {
-      done(err as Error, undefined);
+      const message =
+        err instanceof Error ? err.message : 'No se pudo validar la cuenta';
+      done(new Error(message), undefined);
     }
   }
 }

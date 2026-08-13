@@ -27,13 +27,18 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setAuthDenied(params.get('auth') === 'denied');
+    const reason = params.get('reason');
+    if (reason) {
+      sessionStorage.setItem('auth_denied_reason', reason);
+    }
     if (params.has('auth')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-    void authApi.me().then((user) => {
-      setAuthed(Boolean(user));
-      setAuthReady(true);
-    });
+    void authApi
+      .me()
+      .then((user) => setAuthed(Boolean(user)))
+      .catch(() => setAuthed(false))
+      .finally(() => setAuthReady(true));
   }, []);
 
   const refresh = useCallback(async () => {
