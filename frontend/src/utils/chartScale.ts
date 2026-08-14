@@ -32,6 +32,37 @@ export function buildYScale(values: number[]) {
   return { maxY: ticks[ticks.length - 1], ticks };
 }
 
+/** Ventana de gráfico: actual siempre; hasta 6 atrás y 3 adelante, recortada al extremo con datos. */
+export function periodsForChart(
+  dataKeys: string[],
+  current: string,
+  shift: (key: string, delta: number) => string,
+  maxBefore = 6,
+  maxAfter = 3,
+): string[] {
+  if (dataKeys.length === 0) return [];
+
+  const data = new Set(dataKeys.filter(Boolean));
+  const lookback: string[] = [];
+  for (let i = maxBefore; i >= 1; i -= 1) lookback.push(shift(current, -i));
+  const lookahead: string[] = [];
+  for (let i = 1; i <= maxAfter; i += 1) lookahead.push(shift(current, i));
+
+  const earliest = lookback.find((key) => data.has(key));
+  const latest = [...lookahead].reverse().find((key) => data.has(key));
+  const from = earliest ?? current;
+  const to = latest ?? current;
+
+  const result: string[] = [];
+  let cursor = from;
+  for (let i = 0; i < maxBefore + maxAfter + 1; i += 1) {
+    result.push(cursor);
+    if (cursor === to) break;
+    cursor = shift(cursor, 1);
+  }
+  return result;
+}
+
 export function shortMonthLabel(key: string, mode: 'monthly' | 'annual'): string {
   if (mode === 'annual') return key;
   const [y, m] = key.split('-').map(Number);

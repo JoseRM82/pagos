@@ -10,6 +10,11 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    SystemBars: {
+      hidden: true,
+    },
+  },
 };
 
 export default config;

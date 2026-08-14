@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import type { CreateGastoPayload, Gasto, TipoGasto } from '../types/gasto';
 import { gastosApi } from '../api/gastosApi';
 import { getTodayLocal } from '../utils/dateUtils';
 import { normalizeDecimalInput } from '../utils/formatters';
+import { readComprobanteFromGallery } from '../native/readComprobante';
+import { DatePickerField } from './DatePickerField';
 
 interface Props {
   onClose: () => void;
@@ -40,6 +43,10 @@ function ToggleGroup<T extends string>({
   );
 }
 
+function formatCantidadInput(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 export function AddExpenseModal({
   onClose,
   onSuccess,
@@ -52,18 +59,68 @@ export function AddExpenseModal({
   const [concepto, setConcepto] = useState('');
   const [cantidad, setCantidad] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reading, setReading] = useState(false);
   const [formMsg, setFormMsg] = useState<PanelMessage | null>(null);
+  const isNative = Capacitor.isNativePlatform();
 
   const cantidadNum = Number(normalizeDecimalInput(cantidad));
   const formValid = !Number.isNaN(cantidadNum) && cantidadNum >= 0.01;
+  const busy = loading || reading;
 
   const handleClose = () => {
     if (blockClose) return;
     onClose();
   };
 
+  const readComprobante = async () => {
+    if (busy) return;
+    setReading(true);
+    setBlockClose(true);
+    setFormMsg({ text: 'Leyendo comprobante...', tone: 'muted' });
+    try {
+      const result = await readComprobanteFromGallery();
+      if (!result.ok) {
+        if (result.reason === 'cancelled') {
+          setFormMsg(null);
+          return;
+        }
+        if (result.reason === 'app_error') {
+          setFormMsg({
+            text: 'No se pudo leer la imagen. Probá de nuevo en un momento.',
+            tone: 'error',
+          });
+          return;
+        }
+        if (result.reason === 'unreadable') {
+          setFormMsg({
+            text: 'La imagen no se pudo leer.',
+            tone: 'error',
+          });
+          return;
+        }
+        setFormMsg({
+          text: 'No se reconoció como un comprobante de transferencia.',
+          tone: 'error',
+        });
+        return;
+      }
+
+      setCantidad(formatCantidadInput(result.cantidad));
+      setFecha(result.fecha ?? '');
+      setFormMsg({
+        text: result.fecha
+          ? 'Se completaron monto y fecha. Revisá el resto y guardá.'
+          : 'Se completó el monto. Revisá el resto y guardá.',
+        tone: 'muted',
+      });
+    } finally {
+      setReading(false);
+      setBlockClose(false);
+    }
+  };
+
   const submitForm = async () => {
-    if (!formValid || loading) return;
+    if (!formValid || busy) return;
     setLoading(true);
     setBlockClose(true);
     setFormMsg({ text: 'Cargando datos...', tone: 'muted' });
@@ -101,14 +158,25 @@ export function AddExpenseModal({
         </button>
         <h2 style={{ color: 'var(--gasto-purple)', marginTop: 0 }}>Agregar gasto</h2>
 
+        {isNative && (
+          <button
+            type="button"
+            className="btn-secondary btn-comprobante"
+            disabled={busy}
+            onClick={() => void readComprobante()}
+          >
+            {reading ? 'Leyendo...' : 'Leer comprobante'}
+          </button>
+        )}
+
         <div className="form-field">
           <label htmlFor="fecha">Fecha (opcional, default hoy)</label>
-          <input
+          <DatePickerField
             id="fecha"
-            type="date"
             value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            onChange={setFecha}
             placeholder={getTodayLocal()}
+            disabled={busy}
           />
         </div>
 
@@ -140,6 +208,7 @@ export function AddExpenseModal({
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}
             placeholder="Gasto"
+            disabled={busy}
           />
         </div>
 
@@ -152,13 +221,14 @@ export function AddExpenseModal({
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
             placeholder="0.00"
+            disabled={busy}
           />
         </div>
 
         <button
           type="button"
           className="btn-primary"
-          disabled={!formValid || loading}
+          disabled={!formValid || busy}
           onClick={submitForm}
         >
           {loading ? 'Enviando...' : 'Guardar'}

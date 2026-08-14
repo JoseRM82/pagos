@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ConsolidadoMensual, Gasto, TipoGasto } from '../types/gasto';
 import { TIPOS_GASTO } from '../types/gasto';
 import { gastosApi } from '../api/gastosApi';
@@ -62,7 +62,6 @@ export function MonthExpenseTable({
   onMonthChange,
 }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const hasInitializedMonth = useRef(false);
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -72,30 +71,28 @@ export function MonthExpenseTable({
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mesesConDatos.length === 0) {
-      hasInitializedMonth.current = false;
-      return;
-    }
-    if (!hasInitializedMonth.current && !focusMonth) {
-      setSelectedMonth(mesesConDatos[mesesConDatos.length - 1]);
-      hasInitializedMonth.current = true;
-    }
-  }, [mesesConDatos, focusMonth]);
-
-  useEffect(() => {
     if (!focusMonth) return;
     setSelectedMonth(focusMonth);
-    hasInitializedMonth.current = true;
     onFocusMonthApplied?.();
   }, [focusMonth, onFocusMonthApplied]);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     gastosApi
       .porMes(selectedMonth)
-      .then(setGastos)
-      .catch(() => setGastos([]))
-      .finally(() => setLoading(false));
+      .then((rows) => {
+        if (!cancelled) setGastos(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setGastos([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedMonth, refreshKey]);
 
   const monthTotal =

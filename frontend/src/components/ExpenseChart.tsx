@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   Bar,
   BarChart,
@@ -8,14 +9,10 @@ import {
   YAxis,
 } from 'recharts';
 import type { ConsolidadoAnual, ConsolidadoMensual } from '../types/gasto';
-import {
-  buildMonthWindow,
-  buildYearWindow,
-  getCurrentMonth,
-  maxMonth,
-} from '../utils/dateUtils';
+import { addMonths, addYears, getCurrentMonth, getCurrentYear } from '../utils/dateUtils';
 import {
   buildYScale,
+  periodsForChart,
   SEGMENT_LABELS,
   shortMonthLabel,
 } from '../utils/chartScale';
@@ -80,17 +77,20 @@ function buildPoints(
 ): ChartPoint[] {
   if (mode === 'annual') {
     const map = new Map(anual.map((a) => [a.anio, a]));
-    const years = buildYearWindow(anual);
-    return years.map((anio) =>
-      toPoint(anio, anio, map.get(anio)),
+    const years = periodsForChart(
+      anual.map((a) => a.anio),
+      getCurrentYear(),
+      addYears,
     );
+    return years.map((anio) => toPoint(anio, anio, map.get(anio)));
   }
 
-  const latestDataMonth =
-    mensual.length > 0 ? mensual[mensual.length - 1].mes : getCurrentMonth();
-  const endMonth = maxMonth(getCurrentMonth(), latestDataMonth);
-  const window = buildMonthWindow(endMonth, 12);
   const map = new Map(mensual.filter((m) => m.mes).map((m) => [m.mes, m]));
+  const window = periodsForChart(
+    mensual.map((m) => m.mes),
+    getCurrentMonth(),
+    addMonths,
+  );
 
   return window.map((mes) =>
     toPoint(mes, shortMonthLabel(mes, 'monthly'), map.get(mes)),
@@ -168,12 +168,27 @@ function CustomTooltip({
 }
 
 export function ExpenseChart({ mode, onModeChange, mensual, anual }: Props) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const basePoints = buildPoints(mode, mensual, anual);
   const { maxY, ticks } = buildYScale(basePoints.map((p) => p.total));
   const points = basePoints.map((p) => ({
     ...p,
     air: Math.max(0, maxY - p.total),
   }));
+  const currentKey = mode === 'annual' ? getCurrentYear() : getCurrentMonth();
+  const pointKeys = points.map((p) => p.key).join(',');
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pointKeys) return;
+    const keys = pointKeys.split(',');
+    const idx = keys.indexOf(currentKey);
+    if (idx < 0) return;
+    const inner = el.firstElementChild as HTMLElement | null;
+    if (!inner || inner.scrollWidth <= el.clientWidth) return;
+    const col = inner.scrollWidth / keys.length;
+    el.scrollLeft = Math.max(0, col * idx - el.clientWidth / 2 + col / 2);
+  }, [pointKeys, currentKey]);
 
   if (points.length === 0) {
     return (
@@ -226,6 +241,7 @@ export function ExpenseChart({ mode, onModeChange, mensual, anual }: Props) {
         ))}
       </div>
       <div
+        ref={scrollRef}
         className="chart-scroll"
         tabIndex={-1}
         onPointerUp={() => {
