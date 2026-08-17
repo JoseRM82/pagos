@@ -41,11 +41,32 @@ async function recognizeFromPath(path: string): Promise<ReadComprobanteResult> {
   const { Script, TextRecognition } = await import(
     '@capacitor-mlkit/text-recognition'
   );
-  const { text } = await TextRecognition.processImage({
+  const result = await TextRecognition.processImage({
     path,
     script: Script.Latin,
   });
-  return parseTransferOcr(text ?? '');
+  return parseTransferOcr(flattenOcrText(result));
+}
+
+function flattenOcrText(result: {
+  text?: string;
+  blocks?: {
+    text?: string;
+    lines?: { text?: string; elements?: { text?: string }[] }[];
+  }[];
+}): string {
+  const parts: string[] = [];
+  if (result.text) parts.push(result.text);
+  for (const block of result.blocks ?? []) {
+    for (const line of block.lines ?? []) {
+      const elems = (line.elements ?? [])
+        .map((el) => el.text?.trim())
+        .filter(Boolean);
+      parts.push(elems.length > 0 ? elems.join(' ') : (line.text ?? ''));
+    }
+    if (block.text) parts.push(block.text);
+  }
+  return parts.filter(Boolean).join('\n');
 }
 
 export async function readComprobanteFromGallery(): Promise<ReadComprobanteResult> {

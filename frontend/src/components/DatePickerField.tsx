@@ -71,6 +71,20 @@ export function DatePickerField({
     ...Array.from({ length: maxDay }, (_, i) => i + 1),
   ];
 
+  const minYear = years[0];
+  const maxYear = years[years.length - 1];
+  const canPrevMonth = viewYear > minYear || viewMonth > 1;
+  const canNextMonth = viewYear < maxYear || viewMonth < 12;
+
+  const shiftMonth = (delta: number) => {
+    const next = new Date(viewYear, viewMonth - 1 + delta, 1);
+    const y = next.getFullYear();
+    const m = next.getMonth() + 1;
+    if (y < minYear || y > maxYear) return;
+    setViewYear(y);
+    setViewMonth(m);
+  };
+
   const confirm = (nextDay = day) => {
     onChange(padYmd(viewYear, viewMonth, nextDay));
     setOpen(false);
@@ -97,6 +111,15 @@ export function DatePickerField({
             aria-label="Elegir fecha"
           >
             <div className="date-picker-selects">
+              <button
+                type="button"
+                className="date-picker-nav"
+                aria-label="Mes anterior"
+                disabled={!canPrevMonth}
+                onClick={() => shiftMonth(-1)}
+              >
+                ←
+              </button>
               <select
                 aria-label="Mes"
                 value={viewMonth}
@@ -119,6 +142,15 @@ export function DatePickerField({
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                className="date-picker-nav"
+                aria-label="Mes siguiente"
+                disabled={!canNextMonth}
+                onClick={() => shiftMonth(1)}
+              >
+                →
+              </button>
             </div>
 
             <div className="date-picker-weekdays">

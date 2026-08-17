@@ -36,10 +36,25 @@ const MONTHS: Record<string, number> = {
   dic: 12,
 };
 
-const MONTH_ALT = Object.keys(MONTHS).join('|');
+const MONTH_ALT = Object.keys(MONTHS)
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+
+const SEP = String.raw`[/.\-|]`;
+
+/** ML Kit suele pegar palabras y usar guiones/barras unicode. */
+export function normalizeOcrText(text: string): string {
+  return text
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[\u2215\u2044\uFF0F]/g, '/')
+    .replace(/[|\\]/g, '/')
+    .replace(/([A-Za-zÁÉÍÓÚáéíóúñÑ])(\d)/g, '$1 $2')
+    .replace(/(\d)([A-Za-zÁÉÍÓÚáéíóúñÑ])/g, '$1 $2');
+}
 
 const AMOUNT_KEYWORDS =
-  /importe|monto|total|transferiste|enviaste|pagaste|valor|cantidad|pesos|\bars\b/i;
+  /importe|monto|total|transferiste|enviaste|pagaste|recibiste|recibida|ingresaste|valor|cantidad|pesos|\bars\b/i;
 
 const AMOUNT_TOKEN =
   /\$?\s*\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?|\$?\s*\d{1,10}[.,]\d{1,2}|\$\s*\d{1,10}|\d{1,10}/g;
@@ -84,7 +99,7 @@ function looksLikeYear(n: number): boolean {
 }
 
 function extractCantidad(text: string): number | null {
-  const compact = text.replace(/\u00a0/g, ' ');
+  const compact = normalizeOcrText(text);
   const candidates: { value: number; score: number }[] = [];
   const re = new RegExp(AMOUNT_TOKEN.source, 'g');
   let match: RegExpExecArray | null;
@@ -104,7 +119,9 @@ function extractCantidad(text: string): number | null {
     if (/[.,]\d{1,2}\s*$/.test(raw.trim())) score += 3;
     if (digits.length >= 3 && digits.length <= 8) score += 2;
     if (digits.length <= 2 && !raw.includes('$')) score -= 4;
-    candidates.push({ value, score });
+
+    const withCents = attachSplitCents(raw, value, compact, match.index);
+    candidates.push({ value: withCents, score });
   }
 
   if (candidates.length === 0) return null;
@@ -114,16 +131,51 @@ function extractCantidad(text: string): number | null {
   return best.value;
 }
 
-function extractFecha(text: string, today: string): string | null {
-  const compact = text.replace(/\u00a0/g, ' ');
-  const found: string[] = [];
+const DATE_AFTER_CENTS =
+  /^\s*(?:[/-:]|de\b|ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)/i;
 
-  const push = (day: number | undefined, month: number, year: number | undefined) => {
+/** Apps que ponen los centavos en superíndice: "$ 663.205" + "81" → 663205.81 */
+function attachSplitCents(
+  raw: string,
+  value: number,
+  compact: string,
+  index: number,
+): number {
+  if (/[.,]\d{1,2}\s*$/.test(raw.trim())) return value;
+  if (!Number.isInteger(value)) return value;
+  if (!raw.includes('$') && !/\d{1,3}(?:[.\s]\d{3})+/.test(raw)) return value;
+
+  const after = compact.slice(index + raw.length, index + raw.length + 16);
+  const sameLine = after.match(/^[ \t]*[.,]?(\d{2})(?!\d)/);
+  if (sameLine) {
+    const rest = after.slice(sameLine[0].length);
+    if (DATE_AFTER_CENTS.test(rest)) return value;
+    return Math.round((value + Number(sameLine[1]) / 100) * 100) / 100;
+  }
+
+  const nextLine = after.match(/^\s*\n[ \t]*(\d{2})[ \t]*(?:\n|$)/);
+  if (!nextLine) return value;
+  return Math.round((value + Number(nextLine[1]) / 100) * 100) / 100;
+}
+
+function extractFecha(text: string, today: string): string | null {
+  const compact = normalizeOcrText(text);
+  const found: { value: string; score: number }[] = [];
+
+  const push = (
+    day: number | undefined,
+    month: number,
+    year: number | undefined,
+    extraScore = 0,
+  ) => {
     if (month < 1 || month > 12) return;
     if (day != null && (day < 1 || day > 31)) return;
     const y = year == null ? undefined : normalizeYear(year);
     if (year != null && y == null) return;
-    found.push(completeOcrDate({ day, month, year: y ?? undefined }, today));
+    found.push({
+      value: completeOcrDate({ day, month, year: y ?? undefined }, today),
+      score: extraScore + (day != null ? 2 : 0) + (year != null ? 1 : 0),
+    });
   };
 
   const iso = compact.matchAll(/\b(20\d{2})-(\d{2})-(\d{2})\b/g);
@@ -131,41 +183,112 @@ function extractFecha(text: string, today: string): string | null {
     push(Number(m[3]), Number(m[2]), Number(m[1]));
   }
 
-  const numericFull = compact.matchAll(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/g);
+  const numericFull = compact.matchAll(
+    new RegExp(String.raw`(?<!\d)(\d{1,2})${SEP}(\d{1,2})${SEP}(\d{2,4})(?!\d)`, 'g'),
+  );
   for (const m of numericFull) {
     push(Number(m[1]), Number(m[2]), Number(m[3]));
   }
 
   const namedFull = compact.matchAll(
-    new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${MONTH_ALT})(?:\\s+de)?\\s+(\\d{2,4})\\b`, 'gi'),
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s+de\s+(${MONTH_ALT})(?:\s+de)?\s+(\d{2,4})(?!\d)`,
+      'gi',
+    ),
   );
   for (const m of namedFull) {
     const month = MONTHS[m[2].toLowerCase()];
     if (month) push(Number(m[1]), month, Number(m[3]));
   }
 
+  const namedSlashFull = compact.matchAll(
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s*${SEP}\s*(${MONTH_ALT})\.?\s*${SEP}\s*(\d{4})(?!\d)`,
+      'gi',
+    ),
+  );
+  for (const m of namedSlashFull) {
+    const month = MONTHS[m[2].toLowerCase()];
+    if (month) push(Number(m[1]), month, Number(m[3]));
+  }
+
+  const namedSpaceFull = compact.matchAll(
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s+(${MONTH_ALT})\.?\s+(\d{4})(?!\d)`,
+      'gi',
+    ),
+  );
+  for (const m of namedSpaceFull) {
+    const month = MONTHS[m[2].toLowerCase()];
+    if (month) push(Number(m[1]), month, Number(m[3]));
+  }
+
+  // 4/may - 13:04 | 4 may 13:04 | 4/may13:04 (tras normalizar)
+  const namedWithTime = compact.matchAll(
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s*${SEP}?\s*(${MONTH_ALT})\.?\s*-?\s*\d{1,2}[:.]\d{2}`,
+      'gi',
+    ),
+  );
+  for (const m of namedWithTime) {
+    const month = MONTHS[m[2].toLowerCase()];
+    if (month) push(Number(m[1]), month, undefined, 5);
+  }
+
+  const namedSlashDayMonth = compact.matchAll(
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s*${SEP}\s*(${MONTH_ALT})\.?(?![a-zñ])`,
+      'gi',
+    ),
+  );
+  for (const m of namedSlashDayMonth) {
+    const month = MONTHS[m[2].toLowerCase()];
+    if (month) push(Number(m[1]), month, undefined);
+  }
+
   const namedDayMonth = compact.matchAll(
-    new RegExp(`\\b(\\d{1,2})\\s+de\\s+(${MONTH_ALT})\\b`, 'gi'),
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s+de\s+(${MONTH_ALT})\.?(?![a-zñ])`,
+      'gi',
+    ),
   );
   for (const m of namedDayMonth) {
     const month = MONTHS[m[2].toLowerCase()];
     if (month) push(Number(m[1]), month, undefined);
   }
 
+  const namedSpaceDayMonth = compact.matchAll(
+    new RegExp(
+      String.raw`(?<!\d)(\d{1,2})\s+(${MONTH_ALT})\.?(?![a-zñ])`,
+      'gi',
+    ),
+  );
+  for (const m of namedSpaceDayMonth) {
+    const month = MONTHS[m[2].toLowerCase()];
+    if (month) push(Number(m[1]), month, undefined);
+  }
+
   const monthYear = compact.matchAll(
-    new RegExp(`\\b(${MONTH_ALT})\\s+(?:de\\s+)?(\\d{4})\\b`, 'gi'),
+    new RegExp(
+      String.raw`(?<![a-zñ])(${MONTH_ALT})\s+(?:de\s+)?(\d{4})(?!\d)`,
+      'gi',
+    ),
   );
   for (const m of monthYear) {
     const month = MONTHS[m[1].toLowerCase()];
     if (month) push(undefined, month, Number(m[2]));
   }
 
-  const numericMonthYear = compact.matchAll(/\b(\d{1,2})[/-](20\d{2})\b/g);
+  const numericMonthYear = compact.matchAll(
+    new RegExp(String.raw`(?<!\d)(\d{1,2})${SEP}(20\d{2})(?!\d)`, 'g'),
+  );
   for (const m of numericMonthYear) {
     push(undefined, Number(m[1]), Number(m[2]));
   }
 
-  const numericDayMonth = compact.matchAll(/\b(\d{1,2})[/-](\d{1,2})\b/g);
+  const numericDayMonth = compact.matchAll(
+    new RegExp(String.raw`(?<!\d)(\d{1,2})${SEP}(\d{1,2})(?!\d)`, 'g'),
+  );
   for (const m of numericDayMonth) {
     const day = Number(m[1]);
     const month = Number(m[2]);
@@ -173,7 +296,10 @@ function extractFecha(text: string, today: string): string | null {
     else push(day, month, undefined);
   }
 
-  if (found.length > 0) return found[0];
+  if (found.length > 0) {
+    found.sort((a, b) => b.score - a.score);
+    return found[0].value;
+  }
 
   if (/\bhoy\b/i.test(compact)) return today;
   const yesterday = new Date(`${today}T12:00:00`);
@@ -193,7 +319,7 @@ function extractFecha(text: string, today: string): string | null {
 }
 
 export function parseTransferOcr(text: string, today = getTodayLocal()): ParseTransferResult {
-  const trimmed = text.replace(/\u00a0/g, ' ').trim();
+  const trimmed = normalizeOcrText(text).trim();
   if (trimmed.length < 4 || !/\d/.test(trimmed)) {
     return { ok: false, reason: 'unreadable' };
   }

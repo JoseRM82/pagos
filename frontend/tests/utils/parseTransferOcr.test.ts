@@ -110,6 +110,39 @@ describe('parseTransferOcr', () => {
       reason: 'not_a_transfer',
     });
   });
+
+  it('lee transferencia recibida con fecha 4/may y centavos en superindice', () => {
+    const text = `
+      $ 663.205
+      81
+      Flavio Sebastian Alan Dupen
+      Transferencia recibida
+      4/may - 13:04
+    `;
+    expect(parseTransferOcr(text, TODAY)).toEqual({
+      ok: true,
+      cantidad: 663205.81,
+      fecha: '2026-05-04',
+    });
+  });
+
+  it('lee 4/may pegado a la hora', () => {
+    const text = 'Transferencia recibida $1.200\n4/may-13:04';
+    expect(parseTransferOcr(text, TODAY)).toEqual({
+      ok: true,
+      cantidad: 1200,
+      fecha: '2026-05-04',
+    });
+  });
+
+  it('lee fecha aunque el OCR pegue palabras y la hora', () => {
+    const text = 'Transferencia recibida4/may13:04\n$ 1.200';
+    expect(parseTransferOcr(text, TODAY)).toEqual({
+      ok: true,
+      cantidad: 1200,
+      fecha: '2026-05-04',
+    });
+  });
 });
 
 describe('parseYmd', () => {
