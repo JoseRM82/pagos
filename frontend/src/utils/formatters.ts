@@ -45,7 +45,9 @@ export function formatPercentChange(
   previous: number,
 ): string | null {
   if (previous === 0) return null;
-  const pct = ((current - previous) / previous) * 100;
+  // Con valores netos que cambian de signo (p. ej. pérdida → ganancia), usar
+  // |previous| evita que una mejora se muestre como porcentaje negativo.
+  const pct = ((current - previous) / Math.abs(previous)) * 100;
   const sign = pct >= 0 ? '+' : '-';
   return `${sign}${Math.abs(pct).toFixed(1)}%`;
 }

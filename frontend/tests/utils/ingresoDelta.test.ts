@@ -63,4 +63,21 @@ describe('formatPercentChange', () => {
   it('no muestra pct si anterior es 0', () => {
     expect(formatPercentChange(100, 0)).toBeNull();
   });
+
+  it('mantiene el cálculo habitual cuando ambos son positivos', () => {
+    expect(formatPercentChange(200, 100)).toBe('+100.0%');
+    expect(formatPercentChange(50, 100)).toBe('-50.0%');
+  });
+
+  it('muestra mejora al pasar de pérdida a ganancia', () => {
+    expect(formatPercentChange(175535.71, -225847.8)).toBe('+177.7%');
+  });
+
+  it('muestra empeora al pasar de ganancia a pérdida', () => {
+    expect(formatPercentChange(-225847.8, 175535.71)).toBe('-228.7%');
+  });
+
+  it('interpreta reducción de pérdida como mejora', () => {
+    expect(formatPercentChange(-50, -100)).toBe('+50.0%');
+  });
 });
