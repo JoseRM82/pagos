@@ -407,9 +407,16 @@ tbody tr:nth-child(even) {
   font-weight: 700;
 }
 
+.comprobante-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
 .btn-comprobante {
   width: 100%;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .date-picker-trigger {

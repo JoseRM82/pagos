@@ -3,7 +3,11 @@ import { Capacitor } from '@capacitor/core';
 import type { CreateGastoPayload, TipoGasto } from '../types/gasto';
 import { getTodayLocal } from '../utils/dateUtils';
 import { normalizeDecimalInput } from '../utils/formatters';
-import { readComprobanteFromGallery } from '../native/readComprobante';
+import {
+  readComprobanteFromCamera,
+  readComprobanteFromGallery,
+  type ReadComprobanteResult,
+} from '../native/readComprobante';
 import { DatePickerField } from './DatePickerField';
 
 interface Props {
@@ -71,47 +75,60 @@ export function AddExpenseModal({
     onClose();
   };
 
-  const readComprobante = async () => {
-    if (busy) return;
-    setReading(true);
-    setBlockClose(true);
-    setFormMsg({ text: 'Leyendo comprobante...', tone: 'muted' });
-    try {
-      const result = await readComprobanteFromGallery();
-      if (!result.ok) {
-        if (result.reason === 'cancelled') {
-          setFormMsg(null);
-          return;
-        }
-        if (result.reason === 'app_error') {
-          setFormMsg({
-            text: 'No se pudo leer la imagen. Probá de nuevo en un momento.',
-            tone: 'error',
-          });
-          return;
-        }
-        if (result.reason === 'unreadable') {
-          setFormMsg({
-            text: 'La imagen no se pudo leer.',
-            tone: 'error',
-          });
-          return;
-        }
+  const applyReadResult = (result: ReadComprobanteResult) => {
+    if (!result.ok) {
+      if (result.reason === 'cancelled') {
+        setFormMsg(null);
+        return;
+      }
+      if (result.reason === 'app_error') {
         setFormMsg({
-          text: 'No se reconoció como un comprobante de transferencia.',
+          text: 'No se pudo leer la imagen. Probá de nuevo en un momento.',
           tone: 'error',
         });
         return;
       }
-
-      setCantidad(formatCantidadInput(result.cantidad));
-      setFecha(result.fecha ?? '');
+      if (result.reason === 'unreadable') {
+        setFormMsg({
+          text: 'La imagen no se pudo leer.',
+          tone: 'error',
+        });
+        return;
+      }
       setFormMsg({
-        text: result.fecha
-          ? 'Se completaron monto y fecha. Revisá el resto y guardá.'
-          : 'Se completó el monto. Revisá el resto y guardá.',
-        tone: 'muted',
+        text: 'No se reconoció como un comprobante de transferencia.',
+        tone: 'error',
       });
+      return;
+    }
+
+    setCantidad(formatCantidadInput(result.cantidad));
+    setFecha(result.fecha ?? '');
+    setFormMsg({
+      text: result.fecha
+        ? 'Se completaron monto y fecha. Revisá el resto y guardá.'
+        : 'Se completó el monto. Revisá el resto y guardá.',
+      tone: 'muted',
+    });
+  };
+
+  const readComprobante = async (source: 'camera' | 'gallery') => {
+    if (busy) return;
+    setReading(true);
+    setBlockClose(true);
+    setFormMsg({
+      text:
+        source === 'camera'
+          ? 'Abriendo cámara...'
+          : 'Leyendo comprobante...',
+      tone: 'muted',
+    });
+    try {
+      const result =
+        source === 'camera'
+          ? await readComprobanteFromCamera()
+          : await readComprobanteFromGallery();
+      applyReadResult(result);
     } finally {
       setReading(false);
       setBlockClose(false);
@@ -161,14 +178,24 @@ export function AddExpenseModal({
         <h2 style={{ color: 'var(--gasto-purple)', marginTop: 0 }}>Agregar gasto</h2>
 
         {isNative && (
-          <button
-            type="button"
-            className="btn-secondary btn-comprobante"
-            disabled={busy}
-            onClick={() => void readComprobante()}
-          >
-            {reading ? 'Leyendo...' : 'Leer comprobante'}
-          </button>
+          <div className="comprobante-actions">
+            <button
+              type="button"
+              className="btn-secondary btn-comprobante"
+              disabled={busy}
+              onClick={() => void readComprobante('camera')}
+            >
+              {reading ? 'Leyendo...' : 'Tomar foto'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-comprobante"
+              disabled={busy}
+              onClick={() => void readComprobante('gallery')}
+            >
+              {reading ? 'Leyendo...' : 'Desde galería'}
+            </button>
+          </div>
         )}
 
         <div className="form-field">

@@ -37,6 +37,17 @@ function wait(ms: number): Promise<void> {
   });
 }
 
+async function recognizeFromPath(path: string): Promise<ReadComprobanteResult> {
+  const { Script, TextRecognition } = await import(
+    '@capacitor-mlkit/text-recognition'
+  );
+  const { text } = await TextRecognition.processImage({
+    path,
+    script: Script.Latin,
+  });
+  return parseTransferOcr(text ?? '');
+}
+
 export async function readComprobanteFromGallery(): Promise<ReadComprobanteResult> {
   if (!Capacitor.isNativePlatform()) {
     return { ok: false, reason: 'app_error' };
@@ -44,9 +55,6 @@ export async function readComprobanteFromGallery(): Promise<ReadComprobanteResul
 
   try {
     const { Camera, MediaTypeSelection } = await import('@capacitor/camera');
-    const { Script, TextRecognition } = await import(
-      '@capacitor-mlkit/text-recognition'
-    );
 
     const { results } = await Camera.chooseFromGallery({
       limit: 1,
@@ -59,8 +67,38 @@ export async function readComprobanteFromGallery(): Promise<ReadComprobanteResul
       return { ok: false, reason: 'app_error' };
     }
 
-    const { text } = await TextRecognition.processImage({ path, script: Script.Latin });
-    return parseTransferOcr(text ?? '');
+    return await recognizeFromPath(path);
+  } catch (err) {
+    if (isUserCancel(err)) return { ok: false, reason: 'cancelled' };
+    return { ok: false, reason: 'app_error' };
+  }
+}
+
+export async function readComprobanteFromCamera(): Promise<ReadComprobanteResult> {
+  if (!Capacitor.isNativePlatform()) {
+    return { ok: false, reason: 'app_error' };
+  }
+
+  try {
+    const { Camera } = await import('@capacitor/camera');
+
+    const perms = await Camera.requestPermissions({ permissions: ['camera'] });
+    if (perms.camera !== 'granted' && perms.camera !== 'limited') {
+      return { ok: false, reason: 'app_error' };
+    }
+
+    const photo = await Camera.takePhoto({
+      quality: 90,
+      correctOrientation: true,
+      saveToGallery: false,
+    });
+    await wait(500);
+    const path = mediaPath({ uri: photo.uri });
+    if (!path) {
+      return { ok: false, reason: 'app_error' };
+    }
+
+    return await recognizeFromPath(path);
   } catch (err) {
     if (isUserCancel(err)) return { ok: false, reason: 'cancelled' };
     return { ok: false, reason: 'app_error' };
