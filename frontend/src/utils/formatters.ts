@@ -22,6 +22,20 @@ export function formatCantidad(cantidad: number): string {
   return `$${formatNumber(cantidad)}`;
 }
 
+/** Cuando el periodo anterior es 0: muestra signo (+/-) sin %. */
+export function formatCantidadSigned(cantidad: number): string {
+  const sign = cantidad >= 0 ? '+' : '-';
+  return `${sign}$${formatNumber(Math.abs(cantidad))}`;
+}
+
+export function formatHoverCantidad(
+  current: number,
+  previous: number | null,
+): string {
+  if (previous === 0) return formatCantidadSigned(current);
+  return formatCantidad(current);
+}
+
 export function formatMonthTotal(total: number): string {
   return `($${formatNumber(total)})`;
 }

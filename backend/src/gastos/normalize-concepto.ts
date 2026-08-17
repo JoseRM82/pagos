@@ -1,7 +1,10 @@
-export function normalizeConcepto(text: string | undefined | null): string {
-  if (text === undefined || text === null) return 'Gasto';
+export function normalizeConcepto(
+  text: string | undefined | null,
+  fallback = 'Gasto',
+): string {
+  if (text === undefined || text === null) return fallback;
   const collapsed = text.trim().replace(/\s+/g, ' ');
-  if (!collapsed) return 'Gasto';
+  if (!collapsed) return fallback;
   const withoutAccents = collapsed
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');

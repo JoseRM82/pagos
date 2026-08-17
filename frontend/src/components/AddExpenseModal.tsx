@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { CreateGastoPayload, TipoGasto } from '../types/gasto';
+import type { CreateIngresoPayload } from '../types/ingreso';
 import { getTodayLocal } from '../utils/dateUtils';
 import { normalizeDecimalInput } from '../utils/formatters';
 import {
@@ -10,9 +11,13 @@ import {
 } from '../native/readComprobante';
 import { DatePickerField } from './DatePickerField';
 
+export type EntryKind = 'gasto' | 'ingreso';
+
 interface Props {
+  kind: EntryKind;
   onClose: () => void;
-  onCreate: (gasto: CreateGastoPayload) => Promise<boolean>;
+  onCreateGasto?: (gasto: CreateGastoPayload) => Promise<boolean>;
+  onCreateIngreso?: (ingreso: CreateIngresoPayload) => Promise<boolean>;
   blockClose: boolean;
   setBlockClose: (v: boolean) => void;
 }
@@ -51,8 +56,10 @@ function formatCantidadInput(n: number): string {
 }
 
 export function AddExpenseModal({
+  kind,
   onClose,
-  onCreate,
+  onCreateGasto,
+  onCreateIngreso,
   blockClose,
   setBlockClose,
 }: Props) {
@@ -65,6 +72,7 @@ export function AddExpenseModal({
   const [reading, setReading] = useState(false);
   const [formMsg, setFormMsg] = useState<PanelMessage | null>(null);
   const isNative = Capacitor.isNativePlatform();
+  const isGasto = kind === 'gasto';
 
   const cantidadNum = Number(normalizeDecimalInput(cantidad));
   const formValid = !Number.isNaN(cantidadNum) && cantidadNum >= 0.01;
@@ -142,15 +150,24 @@ export function AddExpenseModal({
     setFormMsg({ text: 'Cargando datos...', tone: 'muted' });
     let ok = false;
     try {
-      const payload: CreateGastoPayload = {
-        tipo,
-        cantidad: cantidadNum,
-        prestamo,
-      };
-      if (fecha.trim()) payload.fecha = fecha.trim();
-      if (concepto.trim()) payload.concepto = concepto.trim();
-
-      ok = await onCreate(payload);
+      if (isGasto) {
+        const payload: CreateGastoPayload = {
+          tipo,
+          cantidad: cantidadNum,
+          prestamo,
+        };
+        if (fecha.trim()) payload.fecha = fecha.trim();
+        if (concepto.trim()) payload.concepto = concepto.trim();
+        ok = Boolean(onCreateGasto && (await onCreateGasto(payload)));
+      } else {
+        const payload: CreateIngresoPayload = {
+          cantidad: cantidadNum,
+          prestamo,
+        };
+        if (fecha.trim()) payload.fecha = fecha.trim();
+        if (concepto.trim()) payload.concepto = concepto.trim();
+        ok = Boolean(onCreateIngreso && (await onCreateIngreso(payload)));
+      }
       if (!ok) {
         setFormMsg({
           text: 'No se pudo guardar el cambio. Volvé a intentarlo.',
@@ -169,13 +186,17 @@ export function AddExpenseModal({
     if (ok) onClose();
   };
 
+  const title = isGasto ? 'Agregar gasto' : 'Agregar ingreso';
+  const titleColor = isGasto ? 'var(--gasto-purple)' : 'var(--ingreso-celeste)';
+  const conceptoPlaceholder = isGasto ? 'Gasto' : 'Ingreso';
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="modal-close" onClick={handleClose}>
           ×
         </button>
-        <h2 style={{ color: 'var(--gasto-purple)', marginTop: 0 }}>Agregar gasto</h2>
+        <h2 style={{ color: titleColor, marginTop: 0 }}>{title}</h2>
 
         {isNative && (
           <div className="comprobante-actions">
@@ -209,15 +230,17 @@ export function AddExpenseModal({
           />
         </div>
 
-        <div className="form-field">
-          <label>Tipo de gasto</label>
-          <ToggleGroup
-            value={tipo}
-            options={['fijo', 'variable']}
-            labels={{ fijo: 'Fijo', variable: 'Variable' }}
-            onChange={setTipo}
-          />
-        </div>
+        {isGasto && (
+          <div className="form-field">
+            <label>Tipo de gasto</label>
+            <ToggleGroup
+              value={tipo}
+              options={['fijo', 'variable']}
+              labels={{ fijo: 'Fijo', variable: 'Variable' }}
+              onChange={setTipo}
+            />
+          </div>
+        )}
 
         <div className="form-field">
           <label>Préstamo</label>
@@ -236,7 +259,7 @@ export function AddExpenseModal({
             type="text"
             value={concepto}
             onChange={(e) => setConcepto(e.target.value)}
-            placeholder="Gasto"
+            placeholder={conceptoPlaceholder}
             disabled={busy}
           />
         </div>

@@ -6,6 +6,8 @@
   --gasto-purple-dark: #4a1fa8;
   --gasto-blue: #5b8fd4;
   --gasto-black: #212121;
+  --ingreso-celeste: #6eb6d4;
+  --ingreso-amarillo: #d4b85c;
   --gasto-bg: #ffffff;
   --gasto-text: #212121;
   --gasto-text-muted: #4a4a4a;
@@ -211,6 +213,35 @@ select {
   justify-content: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.list-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--gasto-border);
+  padding-bottom: 0.5rem;
+}
+
+.list-tabs button {
+  background: none;
+  border: none;
+  color: var(--gasto-text-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.list-tabs button.active {
+  color: var(--gasto-purple);
+  background: rgba(98, 54, 204, 0.08);
+}
+
+.list-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .month-nav button {
@@ -641,7 +672,11 @@ tbody tr:nth-child(even) {
   .header-actions .btn-secondary {
     width: 100%;
     padding: 0.55rem 0.6rem;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
+  }
+
+  .header-actions .btn-secondary:first-child {
+    grid-column: 1 / -1;
   }
 
   .card {

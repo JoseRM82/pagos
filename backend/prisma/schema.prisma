@@ -21,3 +21,17 @@ model Gasto {
   @@index([concepto])
   @@map("gastos")
 }
+
+model Ingreso {
+  idIngreso String   @id @default(cuid()) @map("id_ingreso")
+  fecha     DateTime
+  concepto  String   @default("Ingreso")
+  cantidad  Decimal
+  prestamo  Boolean  @default(false)
+  pagado    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fecha])
+  @@index([concepto])
+  @@map("ingresos")
+}

@@ -76,4 +76,10 @@ export const SEGMENT_LABELS: Record<string, string> = {
   fijo: 'Fijo',
   variable: 'Variable',
   prestamo: 'Préstamo',
+  no_prestamo: 'No préstamo',
+  gasto_fijo: 'Gasto fijo',
+  gasto_variable: 'Gasto variable',
+  gasto_prestamo: 'Gasto préstamo',
+  ingreso_no_prestamo: 'Ingreso',
+  ingreso_prestamo: 'Ingreso préstamo',
 };
