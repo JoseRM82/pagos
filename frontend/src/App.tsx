@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Header } from './components/Header';
+import { Header, type AppMode } from './components/Header';
+import { ShoppingCalculatorPanel } from './components/ShoppingCalculatorPanel';
 import { ExpenseChart, type ChartMode } from './components/ExpenseChart';
 import {
   MonthListPanel,
@@ -18,6 +19,18 @@ import { useIngresosStore } from './hooks/useIngresosStore';
 import type { CreateGastoPayload } from './types/gasto';
 import type { CreateIngresoPayload } from './types/ingreso';
 import { getTodayLocal } from './utils/dateUtils';
+import { useShoppingCart } from './hooks/useShoppingCart';
+
+const APP_MODE_KEY = 'app_mode_v1';
+
+function loadAppMode(): AppMode {
+  try {
+    const stored = localStorage.getItem(APP_MODE_KEY);
+    return stored === 'calculadora' ? 'calculadora' : 'finanzas';
+  } catch {
+    return 'finanzas';
+  }
+}
 
 function App() {
   const [authReady, setAuthReady] = useState(false);
@@ -32,10 +45,16 @@ function App() {
   const [listDomain, setListDomain] = useState<ListDomain>('gastos');
   const [blockModalClose, setBlockModalClose] = useState(false);
   const [focusMonth, setFocusMonth] = useState<string | null>(null);
+  const [appMode, setAppMode] = useState<AppMode>(() => loadAppMode());
 
   const onUnauthorized = useCallback(() => setAuthed(false), []);
   const gastos = useGastosStore(onUnauthorized);
   const ingresos = useIngresosStore(onUnauthorized);
+  const shopping = useShoppingCart();
+
+  useEffect(() => {
+    localStorage.setItem(APP_MODE_KEY, appMode);
+  }, [appMode]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -146,6 +165,8 @@ function App() {
   return (
     <div className="app-container">
       <Header
+        mode={appMode}
+        onModeChange={setAppMode}
         onAddGasto={() => {
           if (!pending) setAddKind('gasto');
         }}
@@ -157,7 +178,18 @@ function App() {
         }}
       />
 
-      {initialLoading && !hasData ? (
+      {appMode === 'calculadora' ? (
+        <ShoppingCalculatorPanel
+          items={shopping.items}
+          sortMode={shopping.sortMode}
+          total={shopping.total}
+          onSortModeChange={shopping.setSortMode}
+          onAddItem={shopping.addItem}
+          onUpdateItem={shopping.updateItem}
+          onRemoveItem={shopping.removeItem}
+          onResetCart={shopping.resetCart}
+        />
+      ) : initialLoading && !hasData ? (
         <div className="status-msg muted">Cargando datos...</div>
       ) : !hasData ? (
         <div className="empty-state">
