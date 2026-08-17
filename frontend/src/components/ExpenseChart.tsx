@@ -308,27 +308,4 @@ export function ExpenseChart({ mode, onModeChange, mensual, anual }: Props) {
   );
 }
 
-function buildAnualFromMensual(mensual: ConsolidadoMensual[]): ConsolidadoAnual[] {
-  const byYear = new Map<string, ConsolidadoAnual>();
-  for (const m of mensual) {
-    if (!m.mes) continue;
-    const anio = m.mes.slice(0, 4);
-    const existing = byYear.get(anio) ?? {
-      anio,
-      fijo: 0,
-      variable: 0,
-      prestamo: 0,
-      total: 0,
-    };
-    existing.fijo += m.fijo;
-    existing.variable += m.variable;
-    existing.prestamo += m.prestamo;
-    existing.total += m.total;
-    byYear.set(anio, existing);
-  }
-  return [...byYear.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, v]) => v);
-}
-
-export { buildAnualFromMensual };
+export { buildAnualFromMensual } from '../utils/gastoDelta';

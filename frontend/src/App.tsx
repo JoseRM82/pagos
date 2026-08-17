@@ -6,24 +6,23 @@ import { ConceptModal } from './components/ConceptModal';
 import { AddExpenseModal } from './components/AddExpenseModal';
 import { LoginScreen } from './components/LoginScreen';
 import { authApi } from './api/authApi';
-import { gastosApi } from './api/gastosApi';
 import { listenAuthDeepLink } from './native/authDeepLink';
-import type { ConsolidadoAnual, ConsolidadoMensual } from './types/gasto';
+import { useGastosStore } from './hooks/useGastosStore';
+import type { CreateGastoPayload } from './types/gasto';
+import { getTodayLocal } from './utils/dateUtils';
 
 function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [authDenied, setAuthDenied] = useState(false);
   const [chartMode, setChartMode] = useState<ChartMode>('monthly');
-  const [mensual, setMensual] = useState<ConsolidadoMensual[]>([]);
-  const [anual, setAnual] = useState<ConsolidadoAnual[]>([]);
-  const [mesesConDatos, setMesesConDatos] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
   const [blockModalClose, setBlockModalClose] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [focusMonth, setFocusMonth] = useState<string | null>(null);
+
+  const onUnauthorized = useCallback(() => setAuthed(false), []);
+  const store = useGastosStore(onUnauthorized);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -63,36 +62,28 @@ function App() {
     return () => remove?.();
   }, []);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [m, a, meses] = await Promise.all([
-        gastosApi.consolidadoMensual(),
-        gastosApi.consolidadoAnual(),
-        gastosApi.mesesConDatos(),
-      ]);
-      setMensual(m);
-      setAnual(a);
-      setMesesConDatos(meses);
-      setRefreshKey((k) => k + 1);
-    } catch (err: unknown) {
-      const status = (err as { status?: number }).status;
-      if (status === 401) {
-        setAuthed(false);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    if (!authed) return;
-    void refresh();
-  }, [authed, refresh]);
+    if (!authReady) return;
+    if (!authed) {
+      store.reset();
+      return;
+    }
+    void store.loadInitial();
+    // store methods are stable; only react to auth
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, authed]);
 
   const handleLogout = async () => {
     await authApi.logout();
     setAuthed(false);
+  };
+
+  const onFocusMonthApplied = useCallback(() => setFocusMonth(null), []);
+
+  const handleCreate = async (payload: CreateGastoPayload): Promise<boolean> => {
+    setFocusMonth((payload.fecha?.trim() || getTodayLocal()).slice(0, 7));
+    const created = await store.createGasto(payload);
+    return Boolean(created);
   };
 
   if (!authReady) {
@@ -107,13 +98,21 @@ function App() {
     return <LoginScreen denied={authDenied} />;
   }
 
-  const hasData = mesesConDatos.length > 0 || mensual.length > 0;
+  const hasCache = Object.keys(store.gastosByMonth).length > 0;
+  const hasData = store.mesesConDatos.length > 0 || store.mensual.length > 0 || hasCache;
 
   return (
     <div className="app-container">
-      <Header onAddClick={() => setShowAdd(true)} onLogout={() => void handleLogout()} />
+      <Header
+        onAddClick={() => {
+          if (!store.pending) setShowAdd(true);
+        }}
+        onLogout={() => {
+          if (!store.pending) void handleLogout();
+        }}
+      />
 
-      {loading && !hasData ? (
+      {store.initialLoading && !hasData ? (
         <div className="status-msg muted">Cargando datos...</div>
       ) : !hasData ? (
         <div className="empty-state">
@@ -125,17 +124,22 @@ function App() {
           <ExpenseChart
             mode={chartMode}
             onModeChange={setChartMode}
-            mensual={mensual}
-            anual={anual}
+            mensual={store.mensual}
+            anual={store.anual}
           />
           <MonthExpenseTable
-            mesesConDatos={mesesConDatos}
-            consolidadoMensual={mensual}
-            refreshKey={refreshKey}
+            mesesConDatos={store.mesesConDatos}
+            consolidadoMensual={store.mensual}
+            gastosByMonth={store.gastosByMonth}
+            monthLoading={store.monthLoading}
+            pending={store.pending}
             focusMonth={focusMonth}
-            onFocusMonthApplied={() => setFocusMonth(null)}
+            onFocusMonthApplied={onFocusMonthApplied}
             onConceptClick={setSelectedConcept}
-            onMonthChange={() => void refresh()}
+            ensureMonth={store.ensureMonth}
+            onUpdate={store.updateGasto}
+            onDelete={store.removeGasto}
+            onPagadoToggle={store.setPagado}
           />
         </>
       )}
@@ -143,10 +147,7 @@ function App() {
       {showAdd && (
         <AddExpenseModal
           onClose={() => setShowAdd(false)}
-          onSuccess={(gasto) => {
-            setFocusMonth(gasto.fecha.slice(0, 7));
-            void refresh();
-          }}
+          onCreate={handleCreate}
           blockClose={blockModalClose}
           setBlockClose={setBlockModalClose}
         />
@@ -157,6 +158,18 @@ function App() {
           concepto={selectedConcept}
           onClose={() => setSelectedConcept(null)}
         />
+      )}
+
+      {store.pending && (
+        <div className="mutation-overlay" aria-busy="true" aria-live="polite">
+          <div className="mutation-spinner" />
+        </div>
+      )}
+
+      {store.toast && (
+        <div className="toast toast-error" role="status" onClick={store.dismissToast}>
+          {store.toast}
+        </div>
       )}
     </div>
   );

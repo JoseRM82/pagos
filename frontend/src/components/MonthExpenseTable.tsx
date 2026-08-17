@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ConsolidadoMensual, Gasto, TipoGasto } from '../types/gasto';
 import { TIPOS_GASTO } from '../types/gasto';
-import { gastosApi } from '../api/gastosApi';
 import { addMonths, formatMonthYear, getCurrentMonth } from '../utils/dateUtils';
 import {
   formatCantidad,
@@ -14,11 +13,16 @@ import {
 interface Props {
   mesesConDatos: string[];
   consolidadoMensual: ConsolidadoMensual[];
-  refreshKey: number;
+  gastosByMonth: Record<string, Gasto[]>;
+  monthLoading: string | null;
+  pending: boolean;
   focusMonth?: string | null;
   onFocusMonthApplied?: () => void;
   onConceptClick: (concepto: string) => void;
-  onMonthChange?: () => void;
+  ensureMonth: (mes: string) => Promise<void>;
+  onUpdate: (prev: Gasto, next: Gasto) => Promise<boolean>;
+  onDelete: (gasto: Gasto) => Promise<boolean>;
+  onPagadoToggle: (gasto: Gasto, pagado: boolean) => Promise<boolean>;
 }
 
 function PagadoToggle({
@@ -55,20 +59,25 @@ function PagadoToggle({
 export function MonthExpenseTable({
   mesesConDatos,
   consolidadoMensual,
-  refreshKey,
+  gastosByMonth,
+  monthLoading,
+  pending,
   focusMonth,
   onFocusMonthApplied,
   onConceptClick,
-  onMonthChange,
+  ensureMonth,
+  onUpdate,
+  onDelete,
+  onPagadoToggle,
 }: Props) {
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-  const [gastos, setGastos] = useState<Gasto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => focusMonth || getCurrentMonth(),
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Gasto | null>(null);
   const [editOriginal, setEditOriginal] = useState<Gasto | null>(null);
-  const [sending, setSending] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const ensureMonthRef = useRef(ensureMonth);
+  ensureMonthRef.current = ensureMonth;
 
   useEffect(() => {
     if (!focusMonth) return;
@@ -77,23 +86,12 @@ export function MonthExpenseTable({
   }, [focusMonth, onFocusMonthApplied]);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    gastosApi
-      .porMes(selectedMonth)
-      .then((rows) => {
-        if (!cancelled) setGastos(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setGastos([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedMonth, refreshKey]);
+    void ensureMonthRef.current(selectedMonth);
+  }, [selectedMonth]);
+
+  const cached = gastosByMonth[selectedMonth];
+  const gastos = cached ?? [];
+  const loading = monthLoading === selectedMonth && cached === undefined;
 
   const monthTotal =
     consolidadoMensual.find((c) => c.mes === selectedMonth)?.total ??
@@ -117,73 +115,20 @@ export function MonthExpenseTable({
   };
 
   const submitEdit = async () => {
-    if (!editDraft || !editOriginal) return;
-    setSending(true);
-    try {
-      const payload: Partial<Gasto> = {};
-      if (editDraft.fecha !== editOriginal.fecha) payload.fecha = editDraft.fecha;
-      if (editDraft.tipo !== editOriginal.tipo) payload.tipo = editDraft.tipo;
-      if (editDraft.concepto !== editOriginal.concepto)
-        payload.concepto = editDraft.concepto;
-      if (editDraft.cantidad !== editOriginal.cantidad)
-        payload.cantidad = editDraft.cantidad;
-      if (editDraft.prestamo !== editOriginal.prestamo)
-        payload.prestamo = editDraft.prestamo;
-      if (editDraft.pagado !== editOriginal.pagado)
-        payload.pagado = editDraft.pagado;
-
-      const updated = await gastosApi.update(editDraft.id_gasto, payload);
-      setGastos((rows) =>
-        rows.map((r) => (r.id_gasto === updated.id_gasto ? updated : r)),
-      );
-      cancelEdit();
-      alert('Enviado con éxito');
-      if (Object.keys(payload).length > 0) {
-        onMonthChange?.();
-      }
-    } catch {
-      if (editOriginal) {
-        setGastos((rows) =>
-          rows.map((r) =>
-            r.id_gasto === editOriginal.id_gasto ? editOriginal : r,
-          ),
-        );
-      }
-      cancelEdit();
-      alert('Ocurrió un error, inténtelo nuevamente en un momento');
-    } finally {
-      setSending(false);
-    }
+    if (!editDraft || !editOriginal || pending) return;
+    await onUpdate(editOriginal, editDraft);
+    cancelEdit();
   };
 
   const handleDelete = async (gasto: Gasto) => {
+    if (pending) return;
     if (!confirm(`¿Eliminar el gasto "${gasto.concepto}"?`)) return;
-    setSending(true);
-    try {
-      await gastosApi.remove(gasto.id_gasto);
-      setGastos((rows) => rows.filter((r) => r.id_gasto !== gasto.id_gasto));
-      onMonthChange?.();
-    } catch {
-      alert('No se pudo eliminar el gasto');
-    } finally {
-      setSending(false);
-    }
+    await onDelete(gasto);
   };
 
   const handlePagadoToggle = async (gasto: Gasto, pagado: boolean) => {
-    if (gasto.pagado === pagado) return;
-    setTogglingId(gasto.id_gasto);
-    try {
-      const updated = await gastosApi.update(gasto.id_gasto, { pagado });
-      setGastos((rows) =>
-        rows.map((r) => (r.id_gasto === updated.id_gasto ? updated : r)),
-      );
-      onMonthChange?.();
-    } catch {
-      alert('No se pudo actualizar el estado de pago');
-    } finally {
-      setTogglingId(null);
-    }
+    if (pending || gasto.pagado === pagado) return;
+    await onPagadoToggle(gasto, pagado);
   };
 
   const renderCell = (
@@ -204,6 +149,7 @@ export function MonthExpenseTable({
         <select
           className="inline-input"
           value={editDraft.tipo}
+          disabled={pending}
           onChange={(e) =>
             setEditDraft({ ...editDraft, tipo: e.target.value as TipoGasto })
           }
@@ -221,6 +167,7 @@ export function MonthExpenseTable({
       return (
         <ToggleBool
           value={Boolean(editDraft[field])}
+          disabled={pending}
           onChange={(v) => setEditDraft({ ...editDraft, [field]: v })}
         />
       );
@@ -231,6 +178,7 @@ export function MonthExpenseTable({
         className="inline-input"
         type={type === 'number' ? 'text' : type}
         value={String(editDraft[field])}
+        disabled={pending}
         onChange={(e) =>
           setEditDraft({
             ...editDraft,
@@ -249,8 +197,11 @@ export function MonthExpenseTable({
       <div className="month-nav">
         <button
           type="button"
-          disabled={!canPrev}
-          onClick={() => setSelectedMonth(prevMonth)}
+          disabled={!canPrev || pending}
+          onClick={() => {
+            setSelectedMonth(prevMonth);
+            void ensureMonthRef.current(prevMonth);
+          }}
         >
           ←
         </button>
@@ -259,8 +210,11 @@ export function MonthExpenseTable({
         </h2>
         <button
           type="button"
-          disabled={!canNext}
-          onClick={() => setSelectedMonth(nextMonth)}
+          disabled={!canNext || pending}
+          onClick={() => {
+            setSelectedMonth(nextMonth);
+            void ensureMonthRef.current(nextMonth);
+          }}
         >
           →
         </button>
@@ -296,6 +250,7 @@ export function MonthExpenseTable({
                       <button
                         type="button"
                         className="link-concepto"
+                        disabled={pending}
                         onClick={() => onConceptClick(gasto.concepto)}
                       >
                         {gasto.concepto}
@@ -314,7 +269,7 @@ export function MonthExpenseTable({
                     ) : (
                       <PagadoToggle
                         value={gasto.pagado}
-                        disabled={togglingId === gasto.id_gasto}
+                        disabled={pending}
                         onChange={(v) => handlePagadoToggle(gasto, v)}
                       />
                     )}
@@ -325,7 +280,7 @@ export function MonthExpenseTable({
                         <button
                           type="button"
                           className="btn-secondary"
-                          disabled={sending}
+                          disabled={pending}
                           onClick={cancelEdit}
                         >
                           Cancelar
@@ -333,10 +288,10 @@ export function MonthExpenseTable({
                         <button
                           type="button"
                           className="btn-primary"
-                          disabled={sending}
+                          disabled={pending}
                           onClick={submitEdit}
                         >
-                          {sending ? 'Enviando...' : 'Enviar'}
+                          {pending ? 'Enviando...' : 'Enviar'}
                         </button>
                       </div>
                     ) : (
@@ -344,6 +299,7 @@ export function MonthExpenseTable({
                         <button
                           type="button"
                           className="btn-secondary"
+                          disabled={pending}
                           onClick={() => startEdit(gasto)}
                         >
                           Editar
@@ -351,7 +307,7 @@ export function MonthExpenseTable({
                         <button
                           type="button"
                           className="btn-danger"
-                          disabled={sending}
+                          disabled={pending}
                           onClick={() => handleDelete(gasto)}
                         >
                           Eliminar
@@ -371,9 +327,11 @@ export function MonthExpenseTable({
 
 function ToggleBool({
   value,
+  disabled,
   onChange,
 }: {
   value: boolean;
+  disabled?: boolean;
   onChange: (v: boolean) => void;
 }) {
   return (
@@ -381,6 +339,7 @@ function ToggleBool({
       <button
         type="button"
         className={`toggle-btn ${!value ? 'active' : ''}`}
+        disabled={disabled}
         onClick={() => onChange(false)}
       >
         No
@@ -388,6 +347,7 @@ function ToggleBool({
       <button
         type="button"
         className={`toggle-btn ${value ? 'active' : ''}`}
+        disabled={disabled}
         onClick={() => onChange(true)}
       >
         Sí

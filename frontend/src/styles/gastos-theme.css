@@ -559,6 +559,53 @@ tbody tr:nth-child(even) {
   border-color: var(--gasto-text-muted);
 }
 
+.mutation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(255, 255, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: wait;
+}
+
+.mutation-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid var(--gasto-border);
+  border-top-color: var(--gasto-purple);
+  border-radius: 50%;
+  animation: mutation-spin 0.7s linear infinite;
+}
+
+@keyframes mutation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1200;
+  max-width: min(420px, calc(100% - 2rem));
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.toast-error {
+  color: var(--gasto-error);
+  background: #fdecea;
+  border: 1px solid #f5c0b8;
+}
+
 @media (max-width: 640px) {
   .app-container {
     padding: max(0.75rem, env(safe-area-inset-top, var(--safe-area-inset-top, 0px)))

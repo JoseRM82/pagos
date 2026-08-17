@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import type { CreateGastoPayload, Gasto, TipoGasto } from '../types/gasto';
-import { gastosApi } from '../api/gastosApi';
+import type { CreateGastoPayload, TipoGasto } from '../types/gasto';
 import { getTodayLocal } from '../utils/dateUtils';
 import { normalizeDecimalInput } from '../utils/formatters';
 import { readComprobanteFromGallery } from '../native/readComprobante';
@@ -9,7 +8,7 @@ import { DatePickerField } from './DatePickerField';
 
 interface Props {
   onClose: () => void;
-  onSuccess: (gasto: Gasto) => void;
+  onCreate: (gasto: CreateGastoPayload) => Promise<boolean>;
   blockClose: boolean;
   setBlockClose: (v: boolean) => void;
 }
@@ -49,7 +48,7 @@ function formatCantidadInput(n: number): string {
 
 export function AddExpenseModal({
   onClose,
-  onSuccess,
+  onCreate,
   blockClose,
   setBlockClose,
 }: Props) {
@@ -124,6 +123,7 @@ export function AddExpenseModal({
     setLoading(true);
     setBlockClose(true);
     setFormMsg({ text: 'Cargando datos...', tone: 'muted' });
+    let ok = false;
     try {
       const payload: CreateGastoPayload = {
         tipo,
@@ -133,21 +133,23 @@ export function AddExpenseModal({
       if (fecha.trim()) payload.fecha = fecha.trim();
       if (concepto.trim()) payload.concepto = concepto.trim();
 
-      const created = await gastosApi.createOne(payload);
-      setFormMsg({ text: 'Cargado con éxito', tone: 'success' });
-      setFecha('');
-      setTipo('fijo');
-      setPrestamo(false);
-      setConcepto('');
-      setCantidad('');
-      onSuccess(created);
+      ok = await onCreate(payload);
+      if (!ok) {
+        setFormMsg({
+          text: 'No se pudo guardar el cambio. Volvé a intentarlo.',
+          tone: 'error',
+        });
+      }
     } catch {
-      alert('Hubo un error, inténtelo de nuevo en un momento');
-      setFormMsg(null);
+      setFormMsg({
+        text: 'No se pudo guardar el cambio. Volvé a intentarlo.',
+        tone: 'error',
+      });
     } finally {
       setLoading(false);
       setBlockClose(false);
     }
+    if (ok) onClose();
   };
 
   return (
